@@ -1,0 +1,160 @@
+'use strict';
+
+const functions = require('firebase-functions');
+const {google} = require('googleapis');
+const {WebhookClient} = require('dialogflow-fulfillment');
+const admin = require('firebase-admin');
+const {
+  dialogflow,
+  Permission,
+  SignIn
+} = require('actions-on-google');
+
+// Enter your calendar ID below and service account JSON below, see https://github.com/dialogflow/bike-shop/blob/master/README.md#calendar-setup
+const calendarId = 'la14pdgnd6hiptarepsuh2j5ho@group.calendar.google.com'; // looks like "6ujc6j6rgfk02cp02vg6h38cs0@group.calendar.google.com"
+admin.initializeApp(functions.config().firebase);
+const db = admin.firestore();
+
+const serviceAccount ={
+ "type": "service_account",
+  
+"project_id": "emily-79254",
+  
+"private_key_id": "19a7eeda5aa54b8835a8ffd932276081bca203e3",
+ 
+ "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQD0x4O8yFdyQhzi\n70pA6V9A2hMH2E/OyeUi4Wv7j/qg/Relt4GrGgK91MO0wYDoMuDg2jg+dv+CB1G0\n3n9u7XDp7yO6/bhIbDBeTSglMsiS7J2twjieMylCDLEvLaR665iiGMue4pKxCSGw\nc5nt+kTo6CNYk9u6ZLdmU6W86vTGJvGXzRUH1kB5FQ5S5cxlAN58GBWWDf1DLhNp\niIs15F6yfKdVnvS73AuIfZbmpz9lg0ut2BlyTyVEcxP7Oai3TXdxAMOJy0+wjI/p\nP7AwjZ0Xlbb4mqCgBG5Kd7W/c4PafERAiDstN5/kKa8Q07wSK+TN75wgSWvIopDO\nLgry4LMdAgMBAAECggEAEPTIg5QjOUcq0MOVErW32KUNSsP+v0s4DrhWg8N1BUro\nT51MeQmhD/0ESOoF9SUfySOvYBBb4b+CYZ5Ew0PlHadoWQ8zVqemmsRggrcnssR7\npb+TBCPKI15VYHhvxj4PbDHTL8tFMHNP/J+oFZalHbcwSktac2kqVTHNL4QyduQK\ntiRQEyjzjat52j5CKH8KkQPYXg6NlXnR4mNDHz7VUw4jmFX1dy/BO0Jkvs+VI8mD\n44+a70eGsRnpJtqIbxDK1lSbVDKsDKOtVSgElF8IviYu6huITDkCN8oOGm9TvhlR\n0A8j42yMKHrII+VVP3n70TwQXcasTILKJhca2UyDVwKBgQD7EvmxD0oLvqdL1U16\nejEho/F9nv/imD2yry24OjatqW7MGZv3FqIZfwbQR777cMlKbtJMi/gzV4Lx7JsG\nRFTgG4lIlJvANEGwEZikK10Rcm/7QwfXbQZOqe6/95z3x4FahAX9Mu/TugJTX1Cr\n6kDLpQFJS8MBscP1NGFSDU2s+wKBgQD5lOxz8xOOuCvnl5M0F2xds8jLwVH2FoRo\npf1lLE7InzjYV1bACnPJgsBRNK3BJgVxxIHDmhpYsrNP1KZmb3sevMtvhYsfnAlZ\n4RGSmcLB9PY7DvkQPsn+nOa5NY7Axkb1pp0HuiQISxuHQ2TK4eqOLzmgWM3DEkTQ\nielj9eD0xwKBgC+qaJD+0BXuuiAhfLYV4KH8V+p7dyTztjLoIwvosVzC3/ALpJqC\nR4ADp61/EXj27qAc7fvuTs6gfJGlU8Ea0+pAEA4heHhC832TuaDhQqf/S9ct4J07\na4kfpd34CmrYC2y9x81MEE/n7m0ZmV0p+ecvilD5+ymlMAirSxaiw+5lAoGAYRxN\nFKCUD4ghrS8RG8exZpQ5oO5LkdEZHA7aFa+zx+QMHkF9g6ONge7aHb69jNXacHXh\nd9ZSQgjmND2tsVXXNhKHpZD0nQv9p3cnez9QxF8oH7qntmZ3+hXawF3SebesjJCT\nsRoAQynWQD88zKQyu7gsV/O1vB0zoWDH6xkUuqkCgYEAnyeGwn5M4sAa+/+RBZQE\nFYHDJDLdiitDn73wSATYbzkbj2pkWU33APsl+IFAlRKzYSFdrj1DMIoRUBsWpEqj\nXAAhfVH3Yy0Oo2FdhI+IgdZJx0W4+/N6mRCjR1uhteAXGXljMY3Ntl8DPtWGfe6j\nY2tEhdAR6Q1FB9YlSAp+9tg=\n-----END PRIVATE KEY-----\n",
+  
+"client_email": "restaurant-booking@emily-79254.iam.gserviceaccount.com",
+ 
+ "client_id": "110416257724524870942",
+  
+"auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  
+"token_uri": "https://oauth2.googleapis.com/token",
+ 
+ "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  
+"client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/restaurant-booking%40emily-79254.iam.gserviceaccount.com"
+
+}; // Starts with {"type": "service_account",...
+
+// Set up Google Calendar Service account credentials
+const serviceAccountAuth = new google.auth.JWT({
+  email: serviceAccount.client_email,
+  key: serviceAccount.private_key,
+  scopes: 'https://www.googleapis.com/auth/calendar'
+});
+
+const calendar = google.calendar('v3');
+const timeZone = 'America/Chicago';
+const timeZoneOffset = '-06:00';
+const app = dialogflow({
+    clientId: '1172285382-t34j5830f8oq1dui3466gak375sk4kkb.apps.googleusercontent.com'
+});
+
+
+//'243220574563-kaq48d92kpohg1p52jt490aijbag22u9.apps.googleusercontent.com'
+// Intent that starts the account linking flow.
+app.intent('Start Signin', conv => {
+  conv.ask(new SignIn('Welcome! My name is Emily, your CircleBook Assistant. To start'));
+});
+
+// Create a Dialogflow intent with the `actions_intent_SIGN_IN` event.
+app.intent('Get Signin', (conv, params, signin) => {
+    if (signin.status === 'OK') {
+        const payload = conv.user.profile.payload;
+        conv.ask(`Welcome back ${payload.name}. What can I help you with??`);
+        const databaseEntry = conv.user.profile.payload;
+        const accountRef = db.collection('Accounts').doc('account_info');
+        return db.runTransaction(t => {
+            t.set(accountRef, {entry: databaseEntry});
+            return Promise.resolve('Write complete');
+            }).then(doc => {
+                
+            }).catch(err => {
+                console.log(`Error writing to Firestore: ${err}`);
+    });
+  } else {
+      conv.close(`To continue, you need to make an account with CircleBook, Goodbye.`);
+  }
+});
+
+app.intent('Make Appointment', (conv) => {
+    const dateTimeStart = new Date(Date.parse(conv.parameters.date.split('T')[0] + 'T' + conv.parameters.time.split('T')[1].split('-')[0] + timeZoneOffset));
+    const dateTimeEnd = new Date(new Date(dateTimeStart).setHours(dateTimeStart.getHours() + 1));
+    const appointmentTimeString = dateTimeStart.toLocaleString(
+      'en-US',
+      { month: 'long', day: 'numeric', hour: 'numeric', timeZone: timeZone }
+    );
+
+    // Check the availibility of the time, and make an appointment if there is time on the calendar
+    return createCalendarEvent(dateTimeStart, dateTimeEnd).then(() => {
+      conv.add(`Okay, I have you booked for ${appointmentTimeString}!`);
+    }).catch(() => {
+      conv.add(`I'm sorry, there are no slots available for ${appointmentTimeString}.`);
+    });
+  }
+);
+
+app.intent('ReadFromFirestore', (conv) => {
+    const dialogflowAgentDoc = db.collection('dialogflow').doc('agent');
+    // Get the value of 'entry' in the document and send it to the user
+    return dialogflowAgentDoc.get().then(doc => {
+        if (!doc.exists) {
+          conv.tell('No data found in the database!');
+        } else {
+          conv.ask(doc.data().entry);
+        }
+    }).catch(() => {
+        conv.ask('Error reading entry from the Firestore database. Please add a entry to the database first by saying, "Write <your phrase> to the database"');
+    });
+});
+
+app.intent('WriteToFirestore', (conv) => {
+        // Get parameter from Dialogflow with the string to add to the database
+    const databaseEntry = conv.parameters.databaseEntry;
+
+    // Get the database collection 'dialogflow' and document 'agent' and store
+    // the document  {entry: "<value of database entry>"} in the 'agent' document
+    const dialogflowAgentRef = db.collection('dialogflow').doc('agent');
+    return db.runTransaction(t => {
+      t.set(dialogflowAgentRef, {entry: databaseEntry});
+      return Promise.resolve('Write complete');
+    }).then(doc => {
+      conv.add(`Okay, your "${databaseEntry}" has been ordered!`);
+    }).catch(err => {
+      console.log(`Error writing to Firestore: ${err}`);
+      conv.add(`Failed to write "${databaseEntry}" to the Firestore database.`);
+    });
+  }
+);
+
+
+exports.dialogflowFirebaseFulfillment = functions.https.onRequest(app);
+
+function createCalendarEvent (dateTimeStart, dateTimeEnd) {
+  return new Promise((resolve, reject) => {
+    calendar.events.list({
+      auth: serviceAccountAuth, // List events for time period
+      calendarId: calendarId,
+      timeMin: dateTimeStart.toISOString(),
+      timeMax: dateTimeEnd.toISOString()
+    }, (err, calendarResponse) => {
+      // Check if there is a event already on the Bike Shop Calendar
+      if (err || calendarResponse.data.items.length > 0) {
+        reject(err || new Error('Requested time conflicts with another appointment'));
+      } else {
+        // Create event for the requested time period
+        calendar.events.insert({ auth: serviceAccountAuth,
+          calendarId: calendarId,
+          resource: {summary: 'Restaraunt Book',
+            start: {dateTime: dateTimeStart},
+            end: {dateTime: dateTimeEnd}}
+        }, (err, event) => {
+          err ? reject(err) : resolve(event);
+        }
+        );
+      }
+    });
+  });
+}
